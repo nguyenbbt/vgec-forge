@@ -1,0 +1,12 @@
+{
+  "run_dir": "../outputs/vgec-label2-secondary",
+  "fallback_after_round": 3,
+  "supplementary": {
+    "backend": "api",
+    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "base_url": "http://localhost:8002/v1",
+    "max_tokens": 2048,
+    "timeout": 180,
+    "retries": 2
+  }
+}

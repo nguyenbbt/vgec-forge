@@ -1,0 +1,7 @@
+{
+  "name": "REPLACE_WITH_OFFICIAL_BENCHMARK_AND_VERSION",
+  "metric_key": "F0.5",
+  "gold_reference": "../data/dev.official-reference",
+  "command": ["python", "../benchmark/scorer_adapter.py", "--gold", "{gold}", "--predictions", "{predictions}", "--sources", "{sources}"],
+  "timeout": 300
+}
