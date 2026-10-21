@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .config import load_config
-from .data import exact_keys, read_jsonl, text_value, validate_dataset, write_json, write_jsonl
+from .data import exact_keys, read_jsonl, read_records, references, text_value, validate_dataset, write_json, write_jsonl
 from .evaluation import evaluate, index_gold, mine_hard_examples
 from .models import make_backend
 from .pipeline import Pipeline, validate_verdict
@@ -41,7 +41,7 @@ def fresh_output(path):
 def predict(rows, model_config):
     index_gold(rows)
     examples = eligible_examples([text for row in rows for text in
-                                  (row["Input"], row["Output"]["Fixed Sentence"][0])])
+                                  [row["Input"], *references(row)]])
     model = make_backend(model_config)
     output = []
     try:
@@ -71,6 +71,8 @@ def parser():
     command.add_argument("path")
     command.add_argument("--count", type=int, default=300)
     command.add_argument("--start-id", type=int, default=120001)
+    command = sub.add_parser("inspect-data")
+    command.add_argument("path")
     command = sub.add_parser("predict")
     command.add_argument("--config", default="configs/api.json")
     command.add_argument("--data", required=True)
@@ -97,6 +99,16 @@ def parser():
 
 
 def dispatch(args):
+    if args.command == "inspect-data":
+        from collections import Counter
+        import hashlib
+        rows = read_records(args.path)
+        index_gold(rows)
+        return {"path": str(Path(args.path).resolve()), "count": len(rows),
+                "sha256": hashlib.sha256(Path(args.path).read_bytes()).hexdigest(),
+                "labels": dict(Counter(row["Output"]["Error_Type_Id"] for row in rows)),
+                "reference_counts": dict(Counter(len(row["Output"]["Fixed Sentence"]) for row in rows)),
+                "note": "Original references preserved; empty label-0 references mean exact Input"}
     if args.command == "validate":
         path = Path(args.path)
         rows = json.loads(path.read_text(encoding="utf-8-sig")) if path.suffix == ".json" else read_jsonl(path)
@@ -110,18 +122,18 @@ def dispatch(args):
             scorer = json.loads(path.read_text(encoding="utf-8-sig"))
             scorer["gold_reference"] = str((path.parent / scorer["gold_reference"]).resolve())
             scorer["cwd"] = str((path.parent / scorer.get("cwd", ".")).resolve())
-        report = evaluate(read_jsonl(args.gold), read_jsonl(args.predictions), scorer)
+        report = evaluate(read_records(args.gold), read_jsonl(args.predictions), scorer)
         write_json(args.output, report)
         return report
     if args.command == "mine":
         fresh_output(args.output)
-        holdout = [row for path in args.holdout for row in read_jsonl(path)]
-        rows = mine_hard_examples(read_jsonl(args.train), read_jsonl(args.predictions), holdout, args.limit)
+        holdout = [row for path in args.holdout for row in read_records(path)]
+        rows = mine_hard_examples(read_records(args.train), read_jsonl(args.predictions), holdout, args.limit)
         write_jsonl(args.output, rows)
         return {"review_required": True, "count": len(rows), "path": args.output}
     if args.command == "train-classifier":
         from .classifier import train_baseline
-        return train_baseline(read_jsonl(args.train), read_jsonl(args.dev), args.output_dir, args.seed, args.folds)
+        return train_baseline(read_records(args.train), read_records(args.dev), args.output_dir, args.seed, args.folds)
     config = load_config(args.config)
     if args.command == "doctor":
         versions = {}
@@ -138,7 +150,7 @@ def dispatch(args):
         fresh_output(args.output)
         if config[args.role] is None:
             raise ValueError("Selected model role is not configured")
-        rows = predict(read_jsonl(args.data), config[args.role])
+        rows = predict(read_records(args.data), config[args.role])
         write_jsonl(args.output, rows)
         return {"count": len(rows), "path": args.output}
     with run_lock(config["run_dir"]):

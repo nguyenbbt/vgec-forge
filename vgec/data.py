@@ -44,6 +44,43 @@ def validate_record(row):
     return row
 
 
+def validate_gold_record(row):
+    """Source-corpus contract: preserve all references and empty lists on label 0."""
+    exact_keys(row, ("ID", "Input", "Output"))
+    if type(row["ID"]) is not int or row["ID"] < 0:
+        raise ValueError("Gold ID must be a nonnegative integer")
+    text_value(row["Input"], "Input")
+    output = row["Output"]
+    exact_keys(output, ("Error_Type_Id", "Fixed Sentence"))
+    label, fixed = output["Error_Type_Id"], output["Fixed Sentence"]
+    if type(label) is not int or label not in range(5):
+        raise ValueError("Gold label must be integer 0..4")
+    if not isinstance(fixed, list) or (label != 0 and not fixed):
+        raise ValueError("Error gold requires at least one reference; label 0 may have []")
+    for sentence in fixed:
+        text_value(sentence, "gold reference")
+    if label == 0 and any(sentence != row["Input"] for sentence in fixed):
+        raise ValueError("Nonempty label-0 references must preserve Input exactly")
+    return row
+
+
+def references(row):
+    validate_gold_record(row)
+    return row["Output"]["Fixed Sentence"] or [row["Input"]]
+
+
+def read_records(path):
+    """Read an original JSON array or a JSONL file without altering references."""
+    text = Path(path).read_text(encoding="utf-8-sig")
+    if text.lstrip().startswith("["):
+        rows = json.loads(text)
+    else:
+        rows = read_jsonl(path)
+    for row in rows:
+        validate_gold_record(row)
+    return rows
+
+
 def validate_dataset(rows, count=300, start_id=120001):
     if len(rows) != count:
         raise ValueError(f"Expected {count} records, got {len(rows)}")

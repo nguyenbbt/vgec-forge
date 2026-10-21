@@ -52,3 +52,12 @@ Luôn kiểm tra dữ liệu/model output, chạy tests; API key đọc từ bi�
 Không tải model hoặc gọi API tính phí trong kiểm thử. Không lưu key trong checkpoint.
 Không dùng eval/exec cho model output; lệnh metric chỉ từ cấu hình người vận hành.
 Không ghi đè output có sẵn hoặc thay config của run đang dở một cách âm thầm.
+
+## Cập nhật môi trường và corpus từ người dùng
+- Chạy Transformers trực tiếp trên máy RTX 4050 6 GB.
+- File người dùng cung cấp: `D:/Project/VLSP_VGEC_2026/data/VGEC 2026_v2.json`,
+  457 bản ghi gốc. Bảo vệ toàn bộ file khỏi generation/few-shot.
+- Input gold nhận JSON array hoặc JSONL, nhiều references; nhãn 0 có thể có
+  references rỗng và được diễn giải là Input nguyên văn. Không sửa corpus gốc.
+- Validator đầu ra synthetic giữ nguyên quy tắc nghiêm ngặt một câu sửa.
+- Môi trường Gen riêng, chỉ dùng đọc các packages CUDA có sẵn của venv cũ.

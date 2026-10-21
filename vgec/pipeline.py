@@ -9,7 +9,8 @@ from pathlib import Path
 
 from .config import validate_config
 from .data import (Deduplicator, digest, exact_keys, function_only_edit, normalize,
-                   read_jsonl, text_value, validate_dataset, validate_record, write_json, write_jsonl)
+                   read_jsonl, read_records, references, text_value, validate_dataset,
+                   validate_gold_record, write_json, write_jsonl)
 from .models import make_backend
 from .prompts import (EXAMPLES, RUBRIC, SUBTYPES, TOPICS, audit_prompt, classify_prompt,
                       eligible_examples, injection_prompt, seed_prompt)
@@ -74,11 +75,10 @@ class Pipeline:
                 fingerprints[str(path)] = digest(Path(path).read_text(encoding="utf-8-sig"))
         holdout_texts = []
         for path in self.config["holdout_paths"]:
-            for row in read_jsonl(path):
-                validate_record(row)
-                self.excluded.add(row["Input"])
-                self.excluded.add(row["Output"]["Fixed Sentence"][0])
-                holdout_texts.extend([row["Input"], row["Output"]["Fixed Sentence"][0]])
+            for row in read_records(path):
+                for text in [row["Input"], *references(row)]:
+                    self.excluded.add(text)
+                    holdout_texts.append(text)
         self.examples = eligible_examples(holdout_texts, threshold=self.config["dedup_threshold"])
         for row in EXAMPLES:
             self.excluded.add(row["Input"])
@@ -116,16 +116,17 @@ class Pipeline:
         for item in read_jsonl(path):
             if item.get("split") != "train" or item.get("human_verified") is not True:
                 raise ValueError("Hard examples require train provenance and human_verified=true")
-            row = validate_record(item["record"])
+            row = validate_gold_record(item["record"])
             if row["Output"]["Error_Type_Id"] != 2:
                 continue
-            fixed = row["Output"]["Fixed Sentence"][0]
-            if self.excluded.contains(row["Input"]) or self.excluded.contains(fixed):
+            fixed = references(row)[0]
+            if any(self.excluded.contains(text) for text in [row["Input"], *references(row)]):
                 raise ValueError("Hard example overlaps holdout or built-in few-shot")
             result.append({"Input": row["Input"], "label": 2, "fixed": fixed,
                            "reason": "Gold train example misclassified by the baseline; retain gold label."})
             self.excluded.add(row["Input"])
-            self.excluded.add(fixed)
+            for text in references(row):
+                self.excluded.add(text)
         return result
 
     def _save(self):

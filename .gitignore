@@ -10,3 +10,6 @@ models/
 dist/
 build/
 .coverage
+.hf_cache/
+.pip_cache/
+tmp/

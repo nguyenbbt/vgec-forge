@@ -4,13 +4,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .data import Deduplicator, text_value, validate_record, write_jsonl
+from .data import Deduplicator, references, text_value, validate_gold_record, write_jsonl
 
 
 def index_gold(rows):
     result = {}
     for row in rows:
-        validate_record(row)
+        validate_gold_record(row)
         if row["ID"] in result:
             raise ValueError("Duplicate gold ID")
         result[row["ID"]] = row
@@ -117,11 +117,12 @@ def evaluate(gold, predictions, scorer=None):
 def assert_no_overlap(train, holdout, threshold=0.9):
     excluded = Deduplicator(threshold)
     for row in holdout:
-        validate_record(row)
+        validate_gold_record(row)
         excluded.add(row["Input"])
-        excluded.add(row["Output"]["Fixed Sentence"][0])
+        for sentence in references(row):
+            excluded.add(sentence)
     for row in train:
-        if excluded.contains(row["Input"]) or excluded.contains(row["Output"]["Fixed Sentence"][0]):
+        if any(excluded.contains(text) for text in [row["Input"], *references(row)]):
             raise ValueError("Train/hard-mining data overlaps holdout")
 
 
