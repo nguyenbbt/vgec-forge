@@ -1,0 +1,5 @@
+- [ ] Schema, JSONL, dedup, ID và kiểm tra định dạng.
+- [ ] Rubric, few-shot, backend API/local và reverse injection.
+- [ ] Verifier độc lập, checkpoint/resume và xuất đủ 300 mẫu.
+- [ ] Macro-F1, adapter GEC, baseline và hard mining trên train.
+- [ ] CLI, tài liệu tiếng Việt, kiểm thử tích hợp và review.

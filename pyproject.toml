@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vgec-factory"
+version = "0.1.0"
+description = "Vietnamese grammatical error data generation with independent verification"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+local = ["torch>=2.6,<3", "transformers>=5.3,<6", "accelerate>=1.4,<2", "bitsandbytes>=0.45,<1", "Pillow>=10"]
+classifier = ["scikit-learn>=1.6,<2", "joblib>=1.4,<2"]
+
+[project.scripts]
+vgec = "vgec.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vgec*"]
+
+[tool.setuptools.package-data]
+vgec = ["resources/*.txt", "resources/*.json"]
