@@ -2,7 +2,9 @@ import json
 import unittest
 from unittest.mock import patch
 
-from vgec.models import APIBackend, ModelError, parse_object
+from vgec.models import APIBackend, ModelError, parse_object, TransformersBackend
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 
 class Response:
@@ -46,3 +48,13 @@ class ModelTests(unittest.TestCase):
         for url in ('http://remote.example/v1', 'https://user:password@example.com/v1'):
             with self.assertRaises(ValueError):
                 APIBackend({"model": "q", "base_url": url})
+
+    def test_local_checkpoint_architecture_comes_from_config(self):
+        torch = MagicMock()
+        hf = MagicMock()
+        hf.AutoConfig.from_pretrained.return_value = SimpleNamespace(model_type="qwen3_5")
+        with patch.dict('sys.modules', {'torch': torch, 'transformers': hf}):
+            model = TransformersBackend({"model": "D:/models/generator", "load_in_4bit": False})
+            model._load()
+        hf.Qwen3_5ForConditionalGeneration.from_pretrained.assert_called_once()
+        hf.AutoModelForCausalLM.from_pretrained.assert_not_called()

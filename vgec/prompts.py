@@ -1,6 +1,8 @@
 import json
 from importlib.resources import files
 
+from .data import Deduplicator
+
 
 RUBRIC = files("vgec").joinpath("resources/rubric.txt").read_text(encoding="utf-8")
 EXAMPLES = json.loads(files("vgec").joinpath("resources/fewshot.json").read_text(encoding="utf-8"))
@@ -22,6 +24,14 @@ def messages(instruction, payload):
             {"role": "user", "content": "DATA:\n" + json.dumps(payload, ensure_ascii=False)}]
 
 
+def eligible_examples(excluded_texts, examples=None, threshold=0.9):
+    excluded = Deduplicator(threshold)
+    for text in excluded_texts:
+        excluded.add(text)
+    return [e for e in (EXAMPLES if examples is None else examples)
+            if not excluded.contains(e["Input"]) and not excluded.contains(e["fixed"])]
+
+
 def seed_prompt(topic, subtype, nonce):
     return messages(
         'Viết đúng một câu tiếng Việt tự nhiên, không lỗi, tự đủ ngữ cảnh. Có một cụm phù hợp để nghiên cứu loại cấu trúc yêu cầu. '
@@ -30,8 +40,8 @@ def seed_prompt(topic, subtype, nonce):
         {"topic": topic, "structure": SUBTYPES[subtype], "variation": nonce})
 
 
-def injection_prompt(clean, subtype, hard_examples=()):
-    examples = [e for e in EXAMPLES if e["label"] == 2] + list(hard_examples)[:3]
+def injection_prompt(clean, subtype, hard_examples=(), examples=None):
+    examples = [e for e in (EXAMPLES if examples is None else examples) if e["label"] == 2] + list(hard_examples)[:3]
     return messages(
         'REVERSE ERROR INJECTION, nhãn đích 2. Bắt đầu từ câu đúng được cấp; tạo đúng một lỗi cấu trúc ngữ đoạn. '
         'Lỗi phải có thể gặp ở người viết, không xáo trộn ngẫu nhiên, không chỉ sai phong cách. '
@@ -45,7 +55,7 @@ def injection_prompt(clean, subtype, hard_examples=()):
         {"clean_sentence": clean, "requested_structure": SUBTYPES[subtype], "few_shot": examples})
 
 
-def classify_prompt(sentence):
+def classify_prompt(sentence, examples=None):
     # No target label, candidate metadata or proposed correction is passed here.
     return messages(
         'Phân loại độc lập câu trong Input theo đủ 5 nhãn. Xét cách sửa tối thiểu, '
@@ -53,7 +63,7 @@ def classify_prompt(sentence):
         'Nếu có nhiều lỗi khác loại, ghi rõ trong reason và giảm confidence. '
         'Trả {"label":0, "confidence":0.0, "reason":"phân tích ngắn đơn vị và phép sửa"}; '
         'label là integer 0..4, confidence là số 0..1. Ví dụ chỉ minh họa ranh giới.',
-        {"Input": sentence, "boundary_examples": EXAMPLES})
+        {"Input": sentence, "boundary_examples": eligible_examples([sentence], examples)})
 
 
 def audit_prompt(source, fixed):

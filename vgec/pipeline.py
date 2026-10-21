@@ -4,6 +4,7 @@ import json
 import logging
 import math
 from collections import Counter, defaultdict, deque
+from importlib.resources import files
 from pathlib import Path
 
 from .config import validate_config
@@ -11,7 +12,7 @@ from .data import (Deduplicator, digest, exact_keys, function_only_edit, normali
                    read_jsonl, text_value, validate_dataset, validate_record, write_json, write_jsonl)
 from .models import make_backend
 from .prompts import (EXAMPLES, RUBRIC, SUBTYPES, TOPICS, audit_prompt, classify_prompt,
-                      injection_prompt, seed_prompt)
+                      eligible_examples, injection_prompt, seed_prompt)
 
 LOG = logging.getLogger(__name__)
 
@@ -71,11 +72,14 @@ class Pipeline:
         for path in [*self.config["holdout_paths"], self.config["seed_path"], self.config["hard_examples_path"]]:
             if path:
                 fingerprints[str(path)] = digest(Path(path).read_text(encoding="utf-8-sig"))
+        holdout_texts = []
         for path in self.config["holdout_paths"]:
             for row in read_jsonl(path):
                 validate_record(row)
                 self.excluded.add(row["Input"])
                 self.excluded.add(row["Output"]["Fixed Sentence"][0])
+                holdout_texts.extend([row["Input"], row["Output"]["Fixed Sentence"][0]])
+        self.examples = eligible_examples(holdout_texts, threshold=self.config["dedup_threshold"])
         for row in EXAMPLES:
             self.excluded.add(row["Input"])
             self.excluded.add(row["fixed"])
@@ -91,13 +95,14 @@ class Pipeline:
         # Budget may be increased on resume; quality, models and corpus may not change.
         signature_config = {k: v for k, v in self.config.items() if k != "max_rounds"}
         signature = digest({"config": signature_config, "files": fingerprints,
-                            "rubric": RUBRIC, "examples": EXAMPLES, "version": 1})
+                            "rubric": RUBRIC, "examples": EXAMPLES, "version": 1,
+                            "prompts": files("vgec").joinpath("prompts.py").read_text(encoding="utf-8")})
         if self.checkpoint.exists():
             self.state = json.loads(self.checkpoint.read_text(encoding="utf-8"))
             if self.state["signature"] != signature:
                 raise ValueError("Run configuration or inputs changed; choose a new run_dir")
         else:
-            if (self.directory / "dataset.jsonl").exists():
+            if any((self.directory / name).exists() for name in ("dataset.jsonl", "dataset.json", "audit.jsonl")):
                 raise ValueError("Existing output without matching checkpoint; choose a new run_dir")
             self.state = {"signature": signature, "config": signature_config, "attempts": 0,
                           "candidates": [], "decisions": [], "generation_rejections": []}
@@ -135,6 +140,8 @@ class Pipeline:
         round_index = attempts // cfg["round_size"]
         if round_index >= cfg["max_rounds"]:
             raise ValueError("Generation budget exhausted; increase max_rounds or inspect rejections")
+        if self.seeds is not None and attempts >= len(self.seeds):
+            raise ValueError("Seed corpus exhausted; use a larger corpus in a new run or automatic seeds")
         model_cfg = cfg["generator"]
         if cfg["supplementary"] and round_index >= cfg["fallback_after_round"] and round_index % 2 == 1:
             model_cfg = cfg["supplementary"]
@@ -144,6 +151,8 @@ class Pipeline:
             seen.add(item["input"])
             seen.add(item["fixed"])
         stop = (round_index + 1) * cfg["round_size"]
+        if self.seeds is not None:
+            stop = min(stop, len(self.seeds))
         try:
             while self.state["attempts"] < stop:
                 index = self.state["attempts"]
@@ -152,8 +161,6 @@ class Pipeline:
                 seed = cfg["seed"] + index * 10
                 try:
                     if self.seeds is not None:
-                        if index >= len(self.seeds):
-                            raise RuntimeError("Seed corpus exhausted; add seeds in a new run or use automatic seeds")
                         clean = self.seeds[index]["sentence"]
                     else:
                         response = model.complete(seed_prompt(topic, subtype, seed), temperature=0.8, seed=seed)
@@ -162,7 +169,7 @@ class Pipeline:
                     if self.excluded.contains(clean) or seen.contains(clean):
                         raise ValueError("duplicate_or_holdout_seed")
                     hard = self.hard_examples[index % len(self.hard_examples):][:2] if self.hard_examples else []
-                    response = model.complete(injection_prompt(clean, subtype, hard), temperature=0.7, seed=seed + 1)
+                    response = model.complete(injection_prompt(clean, subtype, hard, self.examples), temperature=0.7, seed=seed + 1)
                     value = validate_candidate(response, clean)
                     if self.excluded.contains(value["input"]) or seen.contains(value["input"]):
                         raise ValueError("duplicate_or_holdout_input")
@@ -189,10 +196,10 @@ class Pipeline:
             for item in pending:
                 decision = {"cid": item["cid"], "status": "rejected", "reason": "label_disagreement"}
                 try:
-                    blind = validate_verdict(model.complete(classify_prompt(item["input"])))
+                    blind = validate_verdict(model.complete(classify_prompt(item["input"], self.examples)))
                     decision["blind"] = blind
                     if blind["label"] == 2 and blind["confidence"] >= self.config["min_confidence"]:
-                        clean = validate_verdict(model.complete(classify_prompt(item["fixed"])))
+                        clean = validate_verdict(model.complete(classify_prompt(item["fixed"], self.examples)))
                         decision["clean"] = clean
                         decision["reason"] = "correction_not_verified_clean"
                         if clean["label"] == 0 and clean["confidence"] >= self.config["min_confidence"]:
@@ -228,13 +235,18 @@ class Pipeline:
                 for index, item in enumerate(chosen)]
         validate_dataset(rows, self.config["count"], self.config["start_id"])
         target = self.directory / "dataset.jsonl"
-        if target.exists() and read_jsonl(target) != rows:
-            raise ValueError("Refusing to replace an existing, different final dataset")
+        audit_rows = [{"ID": row["ID"], "candidate": item, "verification": decisions[item["cid"]]}
+                      for row, item in zip(rows, chosen)]
+        # Preflight all final artifacts before writing any of them.
+        for name, expected in (("dataset.jsonl", rows), ("dataset.json", rows), ("audit.jsonl", audit_rows)):
+            path = self.directory / name
+            if path.exists():
+                existing = json.loads(path.read_text(encoding="utf-8")) if name.endswith(".json") else read_jsonl(path)
+                if existing != expected:
+                    raise ValueError(f"Refusing to replace an existing, different final artifact: {name}")
         write_jsonl(target, rows)
         write_json(self.directory / "dataset.json", rows)
-        write_jsonl(self.directory / "audit.jsonl", [
-            {"ID": row["ID"], "candidate": item, "verification": decisions[item["cid"]]}
-            for row, item in zip(rows, chosen)])
+        write_jsonl(self.directory / "audit.jsonl", audit_rows)
         self.report()
         return target
 

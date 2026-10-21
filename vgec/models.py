@@ -131,7 +131,9 @@ class TransformersBackend:
                 bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=dtype)
         # Qwen3.5 full checkpoints include vision configuration even for text input.
         # https://huggingface.co/docs/transformers/model_doc/qwen3_5
-        self.multimodal = "Qwen3.5" in self.model
+        model_config = hf.AutoConfig.from_pretrained(self.model, trust_remote_code=False,
+                                                     revision=kwargs["revision"])
+        self.multimodal = model_config.model_type == "qwen3_5"
         model_class = hf.Qwen3_5ForConditionalGeneration if self.multimodal else hf.AutoModelForCausalLM
         tokenizer_class = hf.AutoProcessor if self.multimodal else hf.AutoTokenizer
         self.processor = tokenizer_class.from_pretrained(self.model, trust_remote_code=False,

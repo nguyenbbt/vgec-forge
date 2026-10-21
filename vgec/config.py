@@ -47,7 +47,11 @@ def validate_config(raw):
             raise ValueError(f"{role}.model must be a model identifier")
         if model.get("backend", "api") not in ("api", "transformers"):
             raise ValueError("backend must be api or transformers")
-        for key in ("max_tokens", "context_limit", "timeout"):
+        for key in ("max_tokens", "context_limit"):
+            value = model.get(key, 1)
+            if type(value) is not int or value <= 0:
+                raise ValueError(f"{role}.{key} must be a positive integer")
+        for key in ("timeout",):
             value = model.get(key, 1)
             if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
                 raise ValueError(f"Invalid {role}.{key}")
@@ -60,11 +64,23 @@ def validate_config(raw):
             raise ValueError(f"{role}.base_url required for API backend")
         if not isinstance(model.get("extra_body", {}), dict):
             raise ValueError("extra_body must be an object")
+        extra = model.get("extra_body", {})
+        if set(extra) - {"top_k", "min_p", "presence_penalty", "repetition_penalty",
+                         "chat_template_kwargs", "enable_thinking", "response_format"}:
+            raise ValueError("extra_body accepts only generation settings, never credentials")
+        top_p = model.get("top_p", 0.8)
+        if type(top_p) not in (float, int) or not 0 < top_p <= 1:
+            raise ValueError("top_p must be in (0, 1]")
     for role in ("generator", "supplementary"):
         if config[role] and config[role]["model"] == config["verifier"]["model"]:
             raise ValueError("Independent verification requires a different model identifier")
     if not isinstance(config["holdout_paths"], list) or not all(isinstance(p, str) for p in config["holdout_paths"]):
         raise ValueError("holdout_paths must be an array of paths")
+    if not isinstance(config["run_dir"], str) or not config["run_dir"].strip():
+        raise ValueError("run_dir must be a nonempty path")
+    for key in ("seed_path", "hard_examples_path"):
+        if config[key] is not None and (not isinstance(config[key], str) or not config[key].strip()):
+            raise ValueError(f"{key} must be null or a nonempty path")
     return config
 
 

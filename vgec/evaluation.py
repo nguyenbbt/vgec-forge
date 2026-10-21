@@ -36,6 +36,9 @@ def align_predictions(gold, predictions):
         actual[row["ID"]] = row
     if set(expected) != set(actual):
         raise ValueError("Gold and prediction ID sets must match exactly")
+    for identifier, row in actual.items():
+        if row["label"] == 0 and "fixed" in row and row["fixed"] != expected[identifier]["Input"]:
+            raise ValueError("Label-0 predictions must preserve Input exactly")
     return [actual[row["ID"]] for row in gold]
 
 

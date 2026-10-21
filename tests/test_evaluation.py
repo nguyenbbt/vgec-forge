@@ -33,6 +33,12 @@ class EvaluationTests(unittest.TestCase):
         report = evaluate([gold_row(1)], [{"ID": 1, "label": 2, "fixed": "Mẫu đã sửa 1."}])
         self.assertIsNone(report["gec_official"])
 
+    def test_zero_predictions_preserve_exact_input(self):
+        row = gold_row(1, 0)
+        for changed in ("rewritten", row["Input"] + " "):
+            with self.assertRaises(ValueError):
+                evaluate([row], [{"ID": 1, "label": 0, "fixed": changed}])
+
     def test_external_scorer_receives_gold_order_and_no_shell(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
