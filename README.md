@@ -56,6 +56,43 @@ python -m vgec inspect-data "D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json"
 gốc, không bỏ đáp án thay thế. Khử trùng kiểm tra **mọi** reference. Hợp đồng
 đầu ra synthetic vẫn nghiêm ngặt: đúng một câu sửa, nhãn 2 và ID liên tiếp.
 
+## Chạy trên Modal
+
+Từ PowerShell tại `D:\Project\Gen`, cài Modal CLI và đăng nhập một lần:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "modal>=1,<2"
+.\.venv\Scripts\python.exe -m modal setup
+```
+
+Sau đó chạy pipeline trên GPU A100 40 GB:
+
+```powershell
+.\.venv\Scripts\python.exe -m modal run scripts\modal_vgec.py --corpus "D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json"
+```
+
+Runner tải corpus lên Modal Volume `vgec-source`, tải trọng số Qwen vào
+`vgec-hf-cache`, và giữ checkpoint trong `vgec-runs`. Lệnh local lặp các vòng
+sinh/kiểm, lưu checkpoint sau mỗi vòng; nếu phiên bị gián đoạn, chạy lại cùng lệnh
+để tiếp tục. Khi đủ 300 mẫu, runner kiểm schema và tải kết quả về
+`outputs/vgec-label2-modal/dataset.jsonl`. Có thể đổi đích bằng `--output`.
+Không chạy hai phiên với cùng cấu hình cùng lúc vì chúng dùng chung checkpoint.
+
+Modal yêu cầu tài khoản và phương thức thanh toán để cấp GPU. Lần đầu build image
+và tải khoảng 17,4 GB trọng số model có thể mất thời gian. Runner này chưa được
+chạy trên tài khoản Modal trong phiên phát triển; kiểm thử local không chứng minh
+chất lượng sinh hay bộ nhớ GPU thực tế trên Modal.
+
+Nếu cần tải thủ công kết quả và audit từ Volume:
+
+```powershell
+.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal/dataset.jsonl .\outputs\modal-dataset.jsonl
+.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal/audit.jsonl .\outputs\modal-audit.jsonl
+```
+
+Profile Modal ở `configs/modal.json` dùng cùng generator/verifier 4-bit và tập
+loại trừ như profile local, với đường dẫn được ánh xạ sang container Modal.
+
 ## Chạy nhanh qua API
 
 Core chỉ cần Python **3.11+**, không cần cài thư viện bên ngoài khi dùng API.
