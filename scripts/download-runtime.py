@@ -6,6 +6,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = {
@@ -33,15 +34,24 @@ def download(item):
         raise ValueError('Invalid wheel filename')
     target = ROOT / 'tmp' / 'wheels' / wheel['filename']
     target.parent.mkdir(parents=True, exist_ok=True)
+    if target.resolve().parent != (ROOT/'tmp'/'wheels').resolve():
+        raise ValueError('Wheel target escapes the runtime cache')
+
+    def quarantine():
+        target.rename(target.with_name(target.name + '.corrupt-' + uuid4().hex))
+
     expected = wheel['digests']['sha256']
     if target.exists() and checksum(target) == expected:
         return str(target)
+    if target.exists() and target.stat().st_size >= wheel['size']:
+        quarantine()
     print(f'Downloading {name}=={version}', flush=True)
     command = ['curl.exe', '-fLsS', '--retry', '2', '--connect-timeout', '20', '--max-time', '1200']
     if target.exists():
         command += ['-C', '-']
     subprocess.run(command + ['-o', str(target), wheel['url']], check=True)
     if checksum(target) != expected:
+        quarantine()
         raise ValueError(f'Checksum mismatch: {target.name}')
     print(f'Verified {name}=={version}', flush=True)
     return str(target)

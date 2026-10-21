@@ -12,8 +12,8 @@ Implemented against SPEC.md; no real model inference or benchmark scores claimed
   preservation, and local Qwen3.5 dispatch by AutoConfig rather than filename.
 - Optional Transformers and sklearn execution still requires dependencies;
   Transformers also requires model weights. Runtime quality and GPU fit remain unmeasured.
-- Official VGEC metric remains user-supplied: no benchmark name, dev corpus or
-  scorer was present in the workspace.
+- Official VGEC metric remains user-supplied: the follow-up provided a corpus,
+  but no official executable scorer was available.
 - Default thresholds and baseline are engineering starting points, not results
   calibrated on a real dev set. Inspect sampled audit decisions before training.
 
@@ -24,7 +24,7 @@ Implemented against SPEC.md; no real model inference or benchmark scores claimed
   installed locally. Dependency download is resumable and reports status separately.
 - Added JSON-array/multi-reference gold input support without weakening synthetic
   export validation. All references are excluded from generation/few-shot.
-- 39 tests pass. Raw corpus SHA-256:
+- 41 tests pass, including recovery from corrupt dependency downloads. Raw corpus SHA-256:
   `44282dca792a6abefcd198b25e962e56739d3374d62d0a587c35ad2c6a30738b`.
 - Model download remained incomplete due slow/timeouting network transfers;
   do not infer successful real-model execution from unit tests or CUDA availability.
