@@ -1,0 +1,12 @@
+[
+  {"Input":"Mai tôi về quê.","label":0,"fixed":"Mai tôi về quê.","reason":"Câu hoàn chỉnh; không cần trang trọng hóa."},
+  {"Input":"Ai trực tối nay? Tôi.","label":0,"fixed":"Ai trực tối nay? Tôi.","reason":"Input cung cấp đủ căn cứ cho lời đáp lược bỏ."},
+  {"Input":"Những học sinh đạt giải trong kỳ thi vừa qua.","label":1,"fixed":"Những học sinh đạt giải trong kỳ thi vừa qua đã được tuyên dương.","reason":"Chỉ có cụm danh từ, thiếu vị ngữ chính; phải bổ sung thông báo."},
+  {"Input":"Tôi mua một chiếc gỗ bàn nhỏ.","label":2,"fixed":"Tôi mua một chiếc bàn gỗ nhỏ.","reason":"Chất liệu gỗ đứng sai vị trí trong cụm danh từ; phải di chuyển từ nội dung."},
+  {"Input":"Cô ấy muốn tiếng Nhật học ở trung tâm này.","label":2,"fixed":"Cô ấy muốn học tiếng Nhật ở trung tâm này.","reason":"Bổ ngữ tiếng Nhật chen trước động từ học trong cụm động từ phụ thuộc muốn."},
+  {"Input":"Tôi cần một bản chi tiết báo cáo về chuyến khảo sát.","label":2,"fixed":"Tôi cần một bản báo cáo chi tiết về chuyến khảo sát.","reason":"Thành phần miêu tả chi tiết chen giữa loại từ bản và trung tâm báo cáo."},
+  {"Input":"Cuốn sách này thuộc của thư viện.","label":3,"fixed":"Cuốn sách này thuộc thư viện.","reason":"Chỉ xóa từ công cụ của đã đủ; ưu tiên nhãn 3."},
+  {"Input":"Tôi thích đọc sách nhưng và nghe nhạc.","label":3,"fixed":"Tôi thích đọc sách và nghe nhạc.","reason":"Chỉ xóa liên từ nhưng đã đủ sửa quan hệ nối."},
+  {"Input":"Bạn đã ăn cơm chưa?","label":0,"fixed":"Bạn đã ăn cơm chưa?","reason":"Có từ công cụ không đồng nghĩa có lỗi."},
+  {"Input":"Cô hỏi: \"Em tên gì?","label":4,"fixed":"Cô hỏi: \"Em tên gì?\"","reason":"Chỉ thiếu dấu ngoặc kép đóng."}
+]

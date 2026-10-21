@@ -1,0 +1,24 @@
+QUY ƯỚC NHÃN VGEC
+Phân tích đơn vị ngữ pháp bị lỗi và thao tác tối thiểu đủ khắc phục lỗi. Không suy nhãn từ một từ khóa, độ dài câu hoặc số từ sửa đơn thuần.
+
+0 — KHÔNG LỖI
+Câu chấp nhận được về cấu trúc câu, cấu trúc ngữ đoạn, cách dùng từ công cụ và dấu câu; có ý nghĩa rõ trong ngữ cảnh tự thân. Câu có thể thuộc văn nói chuẩn hoặc văn viết thực tế, không bắt buộc trang trọng. Khác biệt phong cách, lựa chọn diễn đạt hoặc một cách nói ít quen thuộc không tự động là lỗi.
+Chấp nhận sự lược bỏ thành phần khi chính Input cung cấp đủ căn cứ để hiểu; không bịa ngữ cảnh ngoài Input để hợp thức hóa một câu thiếu thành phần bắt buộc.
+Khi chọn 0, câu sửa phải giống nguyên văn Input, bao gồm hoa/thường, dấu câu, khoảng trắng và dấu ba chấm. Không diễn đạt lại hoặc chuẩn hóa câu đúng.
+
+1 — LỖI CẤU TRÚC CÂU
+Lỗi trong tổ chức bộ khung câu/mệnh đề hoặc quan hệ giữa các vế, làm thiếu thông báo hoàn chỉnh hoặc xác lập sai quan hệ chủ thể–hành động–nội dung. Bao gồm thiếu chủ ngữ bắt buộc, thiếu vị ngữ/vế chính, chập khuôn cấu trúc, gán nhầm chủ thể, liên kết các vế không phù hợp hoặc đặt sai thành phần cấp câu làm hiểu sai chủ thể/phạm vi bổ nghĩa.
+Chọn 1 khi phải bổ sung thành phần câu bắt buộc, tổ chức lại quan hệ/thành phần cấp câu hoặc tái cấu trúc vế câu. Nếu chỉ điều chỉnh dấu câu là đủ, chọn 4. Nếu chỉ điều chỉnh cục bộ từ công cụ là đủ theo quy ước dưới đây, chọn 3. Nếu chỉ sửa quan hệ bên trong một cụm mà khung câu không cần đổi, chọn 2.
+
+2 — LỖI CẤU TRÚC NGỮ ĐOẠN
+Ngữ đoạn là cụm từ hoặc kết cấu phụ thuộc quanh một thành phần trung tâm, không phải đoạn văn. Lỗi nằm trong quan hệ nội bộ của cụm danh từ, động từ, tính từ hoặc kết cấu phụ thuộc: thành phần bổ nghĩa/bổ ngữ gắn sai trung tâm, đặt sai vị trí, chen ngang không phù hợp, chồng chéo hoặc kết hợp trong khuôn cụm không tương thích. Thành phần phụ thuộc có thể chứa một vế câu nhưng lỗi chính vẫn nằm trong quan hệ của cụm.
+Chọn 2 khi cần sửa cấu tạo cụm, gắn lại quan hệ trung tâm–phụ thuộc hoặc di chuyển/sắp xếp thành phần có nội dung trong cụm mà không xây lại khung câu chính. Nếu lỗi ở khung câu/quan hệ các vế, chọn 1. Nếu chỉ điều chỉnh cục bộ từ công cụ là đủ, chọn 3. Nếu chỉ sửa dấu câu là đủ, chọn 4.
+
+3 — LỖI SỬ DỤNG TỪ CÔNG CỤ
+Lỗi dùng thiếu, thừa, sai chức năng hoặc sai vị trí từ biểu thị quan hệ ngữ pháp, liên kết thành phần, phủ định, tình thái hay ý nghĩa ngữ pháp. Các nhóm liên quan gồm giới từ, liên từ, từ quan hệ và trợ từ; phải xác định chức năng của từ trong câu cụ thể.
+Những từ có thể đảm nhiệm chức năng này gồm: của, với, qua, bằng, trong, giữa, vì, và, nhưng, tuy nhiên, là, đã, đang, sẽ, được, bị, không, cũng, còn, chỉ, mà, thì. Sự xuất hiện của các từ này không tự chứng minh có lỗi.
+Chọn 3 khi bằng chứng lỗi tập trung ở một hoặc một cặp từ công cụ và việc thêm/xóa/thay/di chuyển cục bộ các từ đó đã đủ sửa, không cần thêm thành phần nội dung bắt buộc hay sắp xếp lại cả cụm/câu. Phép sửa chỉ bằng một từ công cụ đã đủ làm câu đúng được ưu tiên vào 3, kể cả khi phép sửa ấy đồng thời khôi phục quan hệ cú pháp.
+Nếu ngoài việc chỉnh từ công cụ còn phải bổ sung nòng cốt hoặc xây lại khung câu, chọn 1. Nếu phải sắp xếp thành phần có nội dung hoặc gắn lại bổ nghĩa/bổ ngữ trong cụm, chọn 2. Không coi một từ công cụ là sai chỉ vì biến thể khác nghe hay hơn; nếu cả hai cách dùng đều hợp lệ và chỉ khác sắc thái, không tạo lỗi.
+
+4 — DẤU CÂU (nhãn loại trừ theo ranh giới người dùng cung cấp)
+Chọn 4 nếu chỉ điều chỉnh dấu câu đã đủ sửa. Không dùng độ dài hay số dấu câu để suy nhãn.
