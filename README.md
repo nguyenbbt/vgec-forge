@@ -9,6 +9,53 @@ Mặc định xuất **300 mẫu nhãn 2**, ID **120001–120300**, bằng:
 - Reverse Error Injection, Label-Conditioned Few-Shot, kiểm nhãn mù,
   kiểm phép sửa, khử trùng và Hard Example Mining từ lỗi classifier.
 
+## Cấu hình trên máy hiện tại
+
+Đã chọn Transformers local. Profile `configs/local-4bit.json` tham chiếu
+`D:/Project/VLSP_VGEC_2026/data/VGEC 2026_v2.json` làm tập bảo vệ chống rò rỉ.
+Đây là file gốc **457 câu**, không phải file split 90 câu ở
+`data/preprocced_data/dev.json`. Chưa tự chọn lại split hoặc dùng câu nào trong
+file 457 câu làm seed/few-shot.
+
+```powershell
+.\scripts\run-local.ps1 -Command doctor
+.\scripts\run-local.ps1 -Command run
+```
+
+Runner dùng `.venv` trong Gen, cache `.hf_cache` trong Gen và tắt ghi bytecode.
+Môi trường này tái sử dụng package CUDA/PyTorch của venv dự án cũ qua file `.pth`
+chỉ đọc; các package nâng cấp cài riêng trong Gen. Không di chuyển/xóa venv cũ
+nếu vẫn dùng cấu hình chia sẻ này. Trên máy khác, cài dependencies local đầy đủ.
+Revision của hai model đã được ghim trong config.
+
+Trạng thái cài dependency trên máy này nằm ở `outputs/local-setup/status.json`,
+log ở `outputs/local-setup/install.log` và `install.err.log`. Chỉ khi trạng thái
+`runtime_ready` mới chạy sinh dữ liệu. Nếu tải mạng bị ngắt, chạy lại:
+
+```powershell
+.\.venv\Scripts\python.exe -B scripts/setup-local.py
+```
+
+Script tiếp tục wheel đã tải một phần, kiểm SHA-256 của PyPI, cài trong Gen rồi
+kiểm tra một phép tính CUDA NF4 nhỏ. Kiểm tra này **không phải** inference Qwen.
+Trọng số hai model khoảng 17,4 GB chưa tải xong; lần chạy `run` đầu tiên sẽ tải
+qua Hugging Face vào cache riêng. Tốc độ mạng thực đo thấp/dao động trong phiên
+cấu hình, nên chưa chạy pipeline 300 câu hoặc báo chất lượng model.
+
+Sau khi trọng số sẵn sàng, có thể chạy `scripts/smoke-local.py` bằng Python của
+Gen với `HF_HOME` trỏ `.hf_cache` để kiểm thử sinh/kiểm một cặp câu trên model thật.
+
+Đọc/kiểm tra file gốc trực tiếp:
+
+```powershell
+python -m vgec inspect-data "D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json"
+```
+
+Đầu vào gold hỗ trợ mảng JSON hoặc JSONL, `Fixed Sentence: []` cho nhãn 0
+(nghĩa là giữ nguyên Input) và nhiều câu sửa hợp lệ cho nhãn lỗi. Không sửa file
+gốc, không bỏ đáp án thay thế. Khử trùng kiểm tra **mọi** reference. Hợp đồng
+đầu ra synthetic vẫn nghiêm ngặt: đúng một câu sửa, nhãn 2 và ID liên tiếp.
+
 ## Chạy nhanh qua API
 
 Core chỉ cần Python **3.11+**, không cần cài thư viện bên ngoài khi dùng API.
@@ -55,8 +102,8 @@ model mỗi giai đoạn và giải phóng trước giai đoạn tiếp theo. 4-
 trọng số; khả năng chạy còn phụ thuộc context, cache, phiên bản CUDA và phần
 vision của Qwen3.5. Chưa đo VRAM/tốc độ thực tế của profile này trên máy của bạn.
 
-Python hiện có trong workspace là bản MSYS2 chưa có pip và thư viện ML.
-Để chạy local, dùng CPython 3.11/3.12 thông thường có pip (hoặc Linux/WSL/Colab)
+Python trên PATH là bản MSYS2; CPython có CUDA đã tìm thấy ở venv dự án cũ
+và Gen có `.venv` riêng. Khi thiết lập trên máy khác, dùng CPython có pip (hoặc Linux/WSL/Colab)
 và PyTorch có CUDA phù hợp, rồi:
 
 ```powershell
@@ -105,7 +152,7 @@ dedup: các câu diễn đạt khác nhau nhưng cùng ý vẫn có thể lọt.
 - `seed_path: "../data/clean.jsonl"`: mỗi dòng dạng `{"sentence":"Một câu đúng."}`.
   Có mẫu định dạng tại `examples/seeds.jsonl`; 5 câu mẫu không đủ sinh 300 bản ghi.
 - `holdout_paths: ["../data/dev.jsonl", "../data/test.jsonl"]`: lọc rò rỉ.
-  File dùng schema VGEC đầy đủ. Cả câu lỗi lẫn câu sửa đều được so trùng;
+  File nhận mảng JSON/JSONL theo schema gold VGEC. Cả câu lỗi lẫn mọi câu sửa đều được so trùng;
   ví dụ few-shot gần trùng holdout cũng bị loại khỏi prompt.
 - `hard_examples_path`: file mẫu khó đã được con người kiểm tra; xem phần dưới.
 - `round_size`: số lượt thử mỗi lô, không phải số mẫu chắc chắn được nhận.

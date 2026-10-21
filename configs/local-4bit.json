@@ -7,7 +7,7 @@
   "max_rounds": 40,
   "min_confidence": 0.85,
   "dedup_threshold": 0.9,
-  "holdout_paths": [],
+  "holdout_paths": ["D:/Project/VLSP_VGEC_2026/data/VGEC 2026_v2.json"],
   "generator": {
     "backend": "transformers",
     "model": "Qwen/Qwen3.5-4B",
@@ -15,7 +15,7 @@
     "device_map": "auto",
     "max_tokens": 1024,
     "context_limit": 8192,
-    "revision": "main"
+    "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
   },
   "supplementary": null,
   "verifier": {
@@ -25,6 +25,6 @@
     "device_map": "auto",
     "max_tokens": 1024,
     "context_limit": 8192,
-    "revision": "main"
+    "revision": "cdbee75f17c01a7cc42f958dc650907174af0554"
   }
 }
