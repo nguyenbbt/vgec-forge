@@ -62,6 +62,8 @@ gốc, không bỏ đáp án thay thế. Khử trùng kiểm tra **mọi** refer
 Từ PowerShell tại `D:\Project\Gen`, cài Modal CLI và đăng nhập một lần:
 
 ```powershell
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 .\.venv\Scripts\python.exe -m pip install "modal>=1,<2"
 .\.venv\Scripts\python.exe -m modal setup
 ```
@@ -71,6 +73,12 @@ Sau đó chạy pipeline trên GPU A100 40 GB. Modal runner mặc định sinh *
 ```powershell
 .\.venv\Scripts\python.exe -m modal run scripts\modal_vgec.py --corpus "D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json"
 ```
+
+Nếu chỉ muốn kiểm tra image và nạp đúng Qwen processor trước khi cấp GPU, chạy
+`.\.venv\Scripts\python.exe -m modal run scripts\modal_vgec.py::image_smoke`.
+Image ghim `torch 2.10.0` và `torchvision 0.25.0` theo
+[cặp phiên bản PyTorch](https://pytorch.org/get-started/previous-versions/),
+đồng thời kiểm import hai gói ngay lúc build để phát hiện lỗi sớm.
 
 Đổi số câu bằng `--count`, ví dụ sinh 30 câu:
 

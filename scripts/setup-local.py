@@ -19,6 +19,7 @@ def main():
     try:
         subprocess.run([sys.executable, '-B', str(ROOT/'scripts/download-runtime.py')], cwd=ROOT, check=True)
         import torch
+        import torchvision
         import transformers
         import bitsandbytes as bnb
         from transformers import Qwen3_5ForConditionalGeneration, AutoProcessor
@@ -29,7 +30,8 @@ def main():
             output = layer(torch.randn(1, 64, device='cuda', dtype=torch.float16))
         if not torch.isfinite(output).all():
             raise RuntimeError('4-bit CUDA smoke returned nonfinite output')
-        status.update(state='runtime_ready', torch=torch.__version__, transformers=transformers.__version__,
+        status.update(state='runtime_ready', torch=torch.__version__, torchvision=torchvision.__version__,
+                      transformers=transformers.__version__,
                       bitsandbytes=bnb.__version__, gpu=torch.cuda.get_device_name(),
                       cuda_4bit_smoke='passed', model_inference_smoke='not_run')
     except Exception as exc:

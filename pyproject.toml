@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-local = ["torch>=2.6,<3", "transformers>=5.3,<6", "accelerate>=1.4,<2", "bitsandbytes>=0.45,<1", "Pillow>=10"]
+local = ["torch>=2.6,<3", "torchvision>=0.21,<1", "transformers>=5.3,<6", "accelerate>=1.4,<2", "bitsandbytes>=0.45,<1", "Pillow>=10"]
 classifier = ["scikit-learn>=1.6,<2", "joblib>=1.4,<2"]
 
 [project.scripts]

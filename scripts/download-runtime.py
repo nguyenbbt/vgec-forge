@@ -10,7 +10,8 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = {
-    'transformers': '5.20.2', 'bitsandbytes': '0.50.2', 'huggingface-hub': '2.2.0',
+    'transformers': '5.20.2', 'bitsandbytes': '0.50.2', 'torchvision': '0.25.0',
+    'huggingface-hub': '2.2.0',
     'tokenizers': '0.23.3', 'typer': '0.27.3', 'hf-xet': '1.7.0',
     'httpx2': '2.16.0', 'httpcore2': '2.16.0', 'truststore': '0.10.5',
     'h11': '0.16.0', 'annotated-doc': '0.0.5', 'shellingham': '1.5.4',
@@ -62,7 +63,8 @@ def main():
         list(pool.map(download, PACKAGES.items()))
     return subprocess.call([sys.executable, '-B', '-m', 'pip', 'install', '--no-index',
                             '--find-links', str(ROOT/'tmp'/'wheels'),
-                            'transformers==5.20.2', 'bitsandbytes==0.50.2'])
+                            'transformers==5.20.2', 'bitsandbytes==0.50.2',
+                            'torchvision==0.25.0'])
 
 
 if __name__ == '__main__':

@@ -19,9 +19,11 @@ cache_volume = modal.Volume.from_name("vgec-hf-cache", create_if_missing=True)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .uv_pip_install(
-        "torch==2.10.0", "transformers==5.20.2", "accelerate==1.12.0",
+        "torch==2.10.0", "torchvision==0.25.0",
+        "transformers==5.20.2", "accelerate==1.12.0",
         "bitsandbytes==0.50.2", "Pillow>=10,<13",
     )
+    .run_commands("python -c 'import torch, torchvision; print(torch.__version__, torchvision.__version__)'")
     .env({"PYTHONPATH": "/app", "HF_HOME": "/mnt/cache",
           "TOKENIZERS_PARALLELISM": "false"})
     # Modal requires local files to be added after all image build steps.
@@ -29,6 +31,27 @@ image = (
     .add_local_file(ROOT / "configs/modal.json", remote_path=REMOTE_CONFIG)
 )
 app = modal.App("vgec-factory")
+
+
+@app.function(image=image, timeout=1800, volumes={"/mnt/cache": cache_volume})
+def image_smoke():
+    """Load the exact Qwen processor that failed, without allocating a GPU."""
+    import torch
+    import torchvision
+    import transformers
+    from vgec.config import load_config
+
+    config = load_config(REMOTE_CONFIG)["generator"]
+    try:
+        processor = transformers.AutoProcessor.from_pretrained(
+            config["model"], revision=config["revision"], trust_remote_code=False)
+        result = {"torch": torch.__version__, "torchvision": torchvision.__version__,
+                  "transformers": transformers.__version__,
+                  "processor": type(processor).__name__}
+        print(json.dumps(result), flush=True)
+        return result
+    finally:
+        cache_volume.commit()
 
 
 @app.function(
