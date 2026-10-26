@@ -1,9 +1,9 @@
 {
-  "run_dir": "/mnt/runs/vgec-label2-modal",
-  "count": 300,
+  "run_dir": "/mnt/runs/vgec-label2-modal-10",
+  "count": 10,
   "start_id": 120001,
   "seed": 42,
-  "round_size": 60,
+  "round_size": 20,
   "max_rounds": 40,
   "min_confidence": 0.85,
   "dedup_threshold": 0.9,

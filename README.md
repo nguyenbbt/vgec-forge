@@ -1,7 +1,8 @@
 # VGEC Factory
 
 Hệ thống Python sinh dữ liệu sửa lỗi ngữ pháp tiếng Việt theo quy ước nhãn của bạn.
-Mặc định xuất **300 mẫu nhãn 2**, ID **120001–120300**, bằng:
+Profile local mặc định xuất **300 mẫu nhãn 2**, ID **120001–120300**; runner Modal
+mặc định **10 mẫu** và cho đổi bằng `--count`. Hệ thống dùng:
 
 - Generator: `Qwen/Qwen3.5-4B`.
 - Generator bổ sung tùy chọn: `Qwen/Qwen2.5-7B-Instruct`.
@@ -65,17 +66,25 @@ Từ PowerShell tại `D:\Project\Gen`, cài Modal CLI và đăng nhập một l
 .\.venv\Scripts\python.exe -m modal setup
 ```
 
-Sau đó chạy pipeline trên GPU A100 40 GB:
+Sau đó chạy pipeline trên GPU A100 40 GB. Modal runner mặc định sinh **10 câu**:
 
 ```powershell
 .\.venv\Scripts\python.exe -m modal run scripts\modal_vgec.py --corpus "D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json"
 ```
 
+Đổi số câu bằng `--count`, ví dụ sinh 30 câu:
+
+```powershell
+.\.venv\Scripts\python.exe -m modal run scripts\modal_vgec.py --count 30 --corpus "D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json"
+```
+
 Runner tải corpus lên Modal Volume `vgec-source`, tải trọng số Qwen vào
 `vgec-hf-cache`, và giữ checkpoint trong `vgec-runs`. Lệnh local lặp các vòng
 sinh/kiểm, lưu checkpoint sau mỗi vòng; nếu phiên bị gián đoạn, chạy lại cùng lệnh
-để tiếp tục. Khi đủ 300 mẫu, runner kiểm schema và tải kết quả về
-`outputs/vgec-label2-modal/dataset.jsonl`. Có thể đổi đích bằng `--output`.
+để tiếp tục. Khi đủ số câu yêu cầu, runner kiểm schema và tải kết quả về
+`outputs/vgec-label2-modal-10/dataset.jsonl` với mặc định 10 câu, hoặc thư mục
+`vgec-label2-modal-<count>` tương ứng. Có thể đổi đích bằng `--output`.
+Mỗi mức `count` dùng checkpoint riêng.
 Không chạy hai phiên với cùng cấu hình cùng lúc vì chúng dùng chung checkpoint.
 
 Modal yêu cầu tài khoản và phương thức thanh toán để cấp GPU. Lần đầu build image
@@ -86,8 +95,8 @@ chất lượng sinh hay bộ nhớ GPU thực tế trên Modal.
 Nếu cần tải thủ công kết quả và audit từ Volume:
 
 ```powershell
-.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal/dataset.jsonl .\outputs\modal-dataset.jsonl
-.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal/audit.jsonl .\outputs\modal-audit.jsonl
+.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal-10/dataset.jsonl .\outputs\modal-dataset.jsonl
+.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal-10/audit.jsonl .\outputs\modal-audit.jsonl
 ```
 
 Profile Modal ở `configs/modal.json` dùng cùng generator/verifier 4-bit và tập

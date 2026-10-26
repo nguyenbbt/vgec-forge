@@ -10,7 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 DATA_FILE = "VGEC 2026_v2.json"
-RUN_NAME = "vgec-label2-modal"
 REMOTE_CONFIG = "/app/configs/modal.json"
 
 source_volume = modal.Volume.from_name("vgec-source", create_if_missing=True)
@@ -23,10 +22,11 @@ image = (
         "torch==2.10.0", "transformers==5.20.2", "accelerate==1.12.0",
         "bitsandbytes==0.50.2", "Pillow>=10,<13",
     )
-    .add_local_dir(ROOT / "vgec", remote_path="/app/vgec")
-    .add_local_file(ROOT / "configs/modal.json", remote_path=REMOTE_CONFIG)
     .env({"PYTHONPATH": "/app", "HF_HOME": "/mnt/cache",
           "TOKENIZERS_PARALLELISM": "false"})
+    # Modal requires local files to be added after all image build steps.
+    .add_local_dir(ROOT / "vgec", remote_path="/app/vgec")
+    .add_local_file(ROOT / "configs/modal.json", remote_path=REMOTE_CONFIG)
 )
 app = modal.App("vgec-factory")
 
@@ -39,16 +39,17 @@ app = modal.App("vgec-factory")
     volumes={"/mnt/data": source_volume.with_mount_options(read_only=True),
              "/mnt/runs": run_volume, "/mnt/cache": cache_volume},
 )
-def run_round():
+def run_round(count: int):
     """Resume pending verification, generate one round, and commit progress."""
     from vgec.config import load_config
+    from vgec.modal_support import config_for_count
     from vgec.pipeline import Pipeline
 
     run_volume.reload()
     cache_volume.reload()
     if not Path("/mnt/data", DATA_FILE).is_file():
         raise FileNotFoundError(f"Missing Modal corpus: /mnt/data/{DATA_FILE}")
-    config = load_config(REMOTE_CONFIG)
+    config = config_for_count(load_config(REMOTE_CONFIG), count)
     try:
         pipeline = Pipeline(config)
         pipeline.verify()
@@ -66,11 +67,14 @@ def run_round():
 @app.local_entrypoint()
 def main(
     corpus: str = r"D:\Project\VLSP_VGEC_2026\data\VGEC 2026_v2.json",
-    output: str = "outputs/vgec-label2-modal/dataset.jsonl",
+    count: int = 10,
+    output: str = "",
 ):
     """Upload holdout, run/resume rounds, and download the final dataset."""
     from vgec.data import validate_dataset
+    from vgec.modal_support import run_name
 
+    name = run_name(count)
     corpus_path = Path(corpus).resolve(strict=True)
     if not corpus_path.is_file():
         raise ValueError(f"Corpus is not a file: {corpus_path}")
@@ -78,16 +82,16 @@ def main(
         upload.put_file(str(corpus_path), f"/{DATA_FILE}")
 
     while True:
-        report = run_round.remote()
+        report = run_round.remote(count)
         print(json.dumps(report, ensure_ascii=False), flush=True)
         if report["accepted"] >= report["target"]:
             break
 
     # read_file yields byte chunks; lines may cross chunk boundaries.
-    payload = b"".join(run_volume.read_file(f"/{RUN_NAME}/dataset.jsonl"))
+    payload = b"".join(run_volume.read_file(f"/{name}/dataset.jsonl"))
     rows = [json.loads(line) for line in payload.decode("utf-8").splitlines()]
-    validate_dataset(rows, 300, 120001)
-    destination = Path(output).resolve()
+    validate_dataset(rows, count, 120001)
+    destination = Path(output or f"outputs/{name}/dataset.jsonl").resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() and destination.read_bytes() != payload:
         raise ValueError(f"Local output differs; choose another --output: {destination}")
