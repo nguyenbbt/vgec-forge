@@ -8,6 +8,7 @@ DEFAULTS = {
     "run_dir": "outputs/vgec-label2", "count": 300, "start_id": 120001,
     "seed": 42, "round_size": 60, "max_rounds": 40,
     "min_confidence": 0.85, "dedup_threshold": 0.9, "fallback_after_round": 3,
+    "controlled_injection": False,
     "seed_path": None, "hard_examples_path": None, "holdout_paths": [],
     "generator": {"backend": "api", "model": "Qwen/Qwen3.5-4B",
                   "base_url": "http://localhost:8000/v1", "max_tokens": 2048,
@@ -34,6 +35,8 @@ def validate_config(raw):
             raise ValueError(f"{key} must be a positive integer")
     if type(config["seed"]) is not int or config["seed"] < 0:
         raise ValueError("seed must be a nonnegative integer")
+    if type(config["controlled_injection"]) is not bool:
+        raise ValueError("controlled_injection must be boolean")
     for key in ("min_confidence", "dedup_threshold"):
         if type(config[key]) not in (int, float) or not 0 < config[key] <= 1:
             raise ValueError(f"{key} must be in (0, 1]")

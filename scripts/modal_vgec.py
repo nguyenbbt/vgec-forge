@@ -68,8 +68,6 @@ def run_round(count: int):
     from vgec.modal_support import config_for_count
     from vgec.pipeline import Pipeline
 
-    run_volume.reload()
-    cache_volume.reload()
     if not Path("/mnt/data", DATA_FILE).is_file():
         raise FileNotFoundError(f"Missing Modal corpus: /mnt/data/{DATA_FILE}")
     config = config_for_count(load_config(REMOTE_CONFIG), count)
@@ -77,8 +75,12 @@ def run_round(count: int):
         pipeline = Pipeline(config)
         pipeline.verify()
         if len(pipeline.accepted()) < config["count"]:
+            before = len(pipeline.state["candidates"])
             pipeline.generate_round()
             pipeline.verify()
+            if len(pipeline.state["candidates"]) == before:
+                pipeline.report()
+                raise ValueError("No valid candidates in this round; inspect checkpoint generation_rejections")
         if len(pipeline.accepted()) >= config["count"]:
             pipeline.export()
         return pipeline.report()
@@ -104,11 +106,17 @@ def main(
     with source_volume.batch_upload(force=True) as upload:
         upload.put_file(str(corpus_path), f"/{DATA_FILE}")
 
+    stalled_rounds = 0
+    previous_accepted = 0
     while True:
         report = run_round.remote(count)
         print(json.dumps(report, ensure_ascii=False), flush=True)
         if report["accepted"] >= report["target"]:
             break
+        stalled_rounds = stalled_rounds + 1 if report["accepted"] == previous_accepted else 0
+        previous_accepted = report["accepted"]
+        if stalled_rounds >= 2:
+            raise RuntimeError("Two rounds without a newly accepted sentence; inspect verifier decisions in the Modal checkpoint")
 
     # read_file yields byte chunks; lines may cross chunk boundaries.
     payload = b"".join(run_volume.read_file(f"/{name}/dataset.jsonl"))

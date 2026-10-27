@@ -12,7 +12,8 @@ from .data import (Deduplicator, digest, exact_keys, function_only_edit, normali
                    read_jsonl, read_records, references, text_value, validate_dataset,
                    validate_gold_record, write_json, write_jsonl)
 from .models import make_backend
-from .prompts import (EXAMPLES, RUBRIC, SUBTYPES, TOPICS, audit_prompt, classify_prompt,
+from .prompts import (CONTROLLED_PATTERNS, EXAMPLES, RUBRIC, SUBTYPES, TOPICS,
+                      audit_prompt, classify_prompt, controlled_seed_prompt,
                       eligible_examples, injection_prompt, seed_prompt)
 
 LOG = logging.getLogger(__name__)
@@ -38,6 +39,16 @@ def validate_candidate(value, clean):
     return value
 
 
+def controlled_candidate(clean, pattern):
+    fixed = pattern["fixed_span"]
+    if clean.count(fixed) != 1:
+        raise ValueError("missing_or_repeated_required_phrase")
+    source = clean.replace(fixed, pattern["error_span"], 1)
+    return validate_candidate({"input": source, "error_span": pattern["error_span"],
+                               "fixed_span": fixed,
+                               "explanation": pattern["explanation"]}, clean)
+
+
 def validate_verdict(value):
     exact_keys(value, ("label", "confidence", "reason"))
     if type(value["label"]) is not int or value["label"] not in range(5):
@@ -51,7 +62,7 @@ def validate_verdict(value):
 
 def validate_audit(value):
     booleans = ("grammatical_fixed", "meaning_preserved", "minimal", "phrase_only",
-                "function_only", "punctuation_only", "natural_error")
+                "function_only", "punctuation_only")
     exact_keys(value, (*booleans, "error_count", "reason"))
     if any(type(value[key]) is not bool for key in booleans):
         raise ValueError("Audit flags must be booleans")
@@ -157,21 +168,27 @@ class Pipeline:
         try:
             while self.state["attempts"] < stop:
                 index = self.state["attempts"]
-                subtype = list(SUBTYPES)[index % len(SUBTYPES)]
+                pattern = CONTROLLED_PATTERNS[index % len(CONTROLLED_PATTERNS)] if cfg["controlled_injection"] else None
+                subtype = pattern["subtype"] if pattern else list(SUBTYPES)[index % len(SUBTYPES)]
                 topic = TOPICS[(index // len(SUBTYPES) + index) % len(TOPICS)]
                 seed = cfg["seed"] + index * 10
                 try:
                     if self.seeds is not None:
                         clean = self.seeds[index]["sentence"]
                     else:
-                        response = model.complete(seed_prompt(topic, subtype, seed), temperature=0.8, seed=seed)
+                        prompt = (controlled_seed_prompt(topic, pattern, seed) if pattern else
+                                  seed_prompt(topic, subtype, seed))
+                        response = model.complete(prompt, temperature=0.8, seed=seed)
                         exact_keys(response, ("sentence",))
                         clean = text_value(response["sentence"])
                     if self.excluded.contains(clean) or seen.contains(clean):
                         raise ValueError("duplicate_or_holdout_seed")
-                    hard = self.hard_examples[index % len(self.hard_examples):][:2] if self.hard_examples else []
-                    response = model.complete(injection_prompt(clean, subtype, hard, self.examples), temperature=0.7, seed=seed + 1)
-                    value = validate_candidate(response, clean)
+                    if pattern:
+                        value = controlled_candidate(clean, pattern)
+                    else:
+                        hard = self.hard_examples[index % len(self.hard_examples):][:2] if self.hard_examples else []
+                        response = model.complete(injection_prompt(clean, subtype, hard, self.examples), temperature=0.7, seed=seed + 1)
+                        value = validate_candidate(response, clean)
                     if self.excluded.contains(value["input"]) or seen.contains(value["input"]):
                         raise ValueError("duplicate_or_holdout_input")
                     item = {**value, "fixed": clean, "cid": digest([value["input"], clean]),
@@ -200,16 +217,12 @@ class Pipeline:
                     blind = validate_verdict(model.complete(classify_prompt(item["input"], self.examples)))
                     decision["blind"] = blind
                     if blind["label"] == 2 and blind["confidence"] >= self.config["min_confidence"]:
-                        clean = validate_verdict(model.complete(classify_prompt(item["fixed"], self.examples)))
-                        decision["clean"] = clean
-                        decision["reason"] = "correction_not_verified_clean"
-                        if clean["label"] == 0 and clean["confidence"] >= self.config["min_confidence"]:
-                            audit = validate_audit(model.complete(audit_prompt(item["input"], item["fixed"])))
-                            decision["audit"] = audit
-                            good = (all(audit[k] for k in ("grammatical_fixed", "meaning_preserved", "minimal", "phrase_only", "natural_error"))
-                                    and not audit["function_only"] and not audit["punctuation_only"] and audit["error_count"] == 1)
-                            decision["status"] = "accepted" if good else "rejected"
-                            decision["reason"] = "passed" if good else "pair_audit_failed"
+                        audit = validate_audit(model.complete(audit_prompt(item["input"], item["fixed"])))
+                        decision["audit"] = audit
+                        good = (all(audit[k] for k in ("grammatical_fixed", "meaning_preserved", "minimal", "phrase_only"))
+                                and not audit["function_only"] and not audit["punctuation_only"] and audit["error_count"] == 1)
+                        decision["status"] = "accepted" if good else "rejected"
+                        decision["reason"] = "passed" if good else "pair_audit_failed"
                 except ValueError as exc:
                     decision["reason"] = "invalid_verifier_response: " + str(exc)[:250]
                 self.state["decisions"].append(decision)
@@ -256,6 +269,8 @@ class Pipeline:
                   "verified": len(self.state["decisions"]), "accepted": len(self.accepted()),
                   "target": self.config["count"], "rejections": dict(Counter(
                       d["reason"] for d in self.state["decisions"] if d["status"] != "accepted")),
+                  "blind_labels": dict(Counter(
+                      str(d["blind"]["label"]) for d in self.state["decisions"] if "blind" in d)),
                   "generation_rejected": len(self.state["generation_rejections"]),
                   "confidence_note": "Model self-reported; not calibrated probability"}
         write_json(self.directory / "report.json", report)

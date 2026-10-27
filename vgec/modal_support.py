@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from .config import validate_config
 
-RUN_PREFIX = "vgec-label2-modal"
+RUN_PREFIX = "vgec-label2-modal-v4"
 
 
 def run_name(count):

@@ -29,9 +29,8 @@ class CLITests(unittest.TestCase):
             {"sentence": good},
             {"input": bad, "error_span": "gỗ ghế", "fixed_span": "ghế gỗ", "explanation": "Sai vị trí chất liệu."},
             {"label": 2, "confidence": 0.99, "reason": "Cấu tạo cụm sai."},
-            {"label": 0, "confidence": 0.99, "reason": "Câu đúng."},
             {"grammatical_fixed": True, "meaning_preserved": True, "minimal": True, "phrase_only": True,
-             "function_only": False, "punctuation_only": False, "natural_error": True, "error_count": 1, "reason": "Một lỗi cụm."},
+             "function_only": False, "punctuation_only": False, "error_count": 1, "reason": "Một lỗi cụm."},
         ])
         received = []
 
@@ -65,10 +64,12 @@ class CLITests(unittest.TestCase):
                 checked = self.invoke("validate", str(output), "--count", "1")
                 self.assertEqual(checked.returncode, 0, checked.stderr)
                 self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["Output"]["Fixed Sentence"], [good])
-                self.assertEqual(len(received), 5)
+                self.assertEqual(len(received), 4)
                 self.assertEqual(received[2]["model"], "Qwen/Qwen3-4B-Instruct-2507")
-                payload = json.loads(received[2]["messages"][1]["content"].split("\n", 1)[1])
-                self.assertNotIn("proposed_correction", payload)
+                prompt = received[2]["messages"]
+                self.assertEqual(prompt[-1], {"role": "user", "content": "Input: " + bad})
+                self.assertNotIn("proposed_correction", str(prompt))
+                self.assertNotIn(good, prompt[-1]["content"])
         finally:
             server.shutdown()
             server.server_close()

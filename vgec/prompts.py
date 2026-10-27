@@ -17,6 +17,24 @@ SUBTYPES = {
     "dependent_construction": "chồng chéo hai khuôn cụm phụ thuộc không tương thích",
 }
 
+# The small Modal generator repeatedly returned the clean sentence unchanged when
+# asked to invent a corruption. These anchored repairs let it write the context
+# while the injection itself remains exact and independently verifiable.
+CONTROLLED_PATTERNS = (
+    {"subtype": "noun_order", "fixed_span": "một chiếc bàn gỗ",
+     "error_span": "một chiếc gỗ bàn", "explanation": "Chất liệu đứng trước trung tâm của cụm danh từ."},
+    {"subtype": "noun_order", "fixed_span": "một bản báo cáo chi tiết",
+     "error_span": "một bản chi tiết báo cáo", "explanation": "Tính chất chen giữa loại từ và trung tâm cụm danh từ."},
+    {"subtype": "verb_complement", "fixed_span": "muốn học tiếng Nhật",
+     "error_span": "muốn tiếng Nhật học", "explanation": "Bổ ngữ đứng trước động từ trong cụm phụ thuộc."},
+    {"subtype": "noun_order", "fixed_span": "một chiếc ghế gỗ",
+     "error_span": "một chiếc gỗ ghế", "explanation": "Chất liệu đứng trước trung tâm của cụm danh từ."},
+    {"subtype": "noun_order", "fixed_span": "một bản kế hoạch cụ thể",
+     "error_span": "một bản cụ thể kế hoạch", "explanation": "Tính chất chen giữa loại từ và trung tâm cụm danh từ."},
+    {"subtype": "verb_complement", "fixed_span": "định học tiếng Anh",
+     "error_span": "định tiếng Anh học", "explanation": "Bổ ngữ đứng trước động từ trong cụm phụ thuộc."},
+)
+
 
 def messages(instruction, payload):
     return [{"role": "system", "content": RUBRIC + "\n\n" + instruction +
@@ -40,6 +58,21 @@ def seed_prompt(topic, subtype, nonce):
         {"topic": topic, "structure": SUBTYPES[subtype], "variation": nonce})
 
 
+def controlled_seed_prompt(topic, pattern, nonce):
+    return [
+        {"role": "system", "content":
+         'Bạn viết câu tiếng Việt đúng ngữ pháp làm nền cho bài tập sửa lỗi. '
+         'Chỉ trả một JSON object hợp lệ dạng {"sentence":"..."}, không markdown.'},
+        {"role": "user", "content":
+         'Viết một câu tự nhiên, hoàn chỉnh, khoảng 10–22 từ, với tình huống đơn giản phù hợp với cụm bắt buộc. '
+         'Câu PHẢI chứa chính xác một lần cụm nguyên văn trong dữ liệu; giữ nguyên dấu và khoảng trắng của cụm. '
+         'Không thêm mệnh đề giải thích hoặc cụm từ gượng ép chỉ để khớp chủ đề. '
+         'Không đưa câu sai hoặc lời giải vào JSON.\nDATA:\n' +
+         json.dumps({"required_phrase": pattern["fixed_span"],
+                     "variation": nonce}, ensure_ascii=False)},
+    ]
+
+
 def injection_prompt(clean, subtype, hard_examples=(), examples=None):
     examples = [e for e in (EXAMPLES if examples is None else examples) if e["label"] == 2] + list(hard_examples)[:3]
     return messages(
@@ -56,27 +89,39 @@ def injection_prompt(clean, subtype, hard_examples=(), examples=None):
 
 
 def classify_prompt(sentence, examples=None):
-    # No target label, candidate metadata or proposed correction is passed here.
-    return messages(
-        'Phân loại độc lập câu trong Input theo đủ 5 nhãn. Xét cách sửa tối thiểu, '
-        'đặc biệt ưu tiên 3 nếu chỉ sửa từ công cụ đã đủ. Không mặc định Input có lỗi. '
-        'Nếu có nhiều lỗi khác loại, ghi rõ trong reason và giảm confidence. '
-        'Trả {"label":0, "confidence":0.0, "reason":"phân tích ngắn đơn vị và phép sửa"}; '
-        'label là integer 0..4, confidence là số 0..1. Ví dụ chỉ minh họa ranh giới.',
-        {"Input": sentence, "boundary_examples": eligible_examples([sentence], examples)})
+    # The candidate answer, intended label and proposed correction remain hidden.
+    demonstrations = eligible_examples([sentence], examples)
+    result = [{"role": "system", "content": RUBRIC + "\n\n"
+               'Phân loại độc lập một Input theo đúng nhãn 0–4. Xét đơn vị cần sửa nhỏ nhất: '
+               'câu có đủ chủ ngữ/vị ngữ vẫn có thể sai trong một cụm danh từ/động từ và thuộc nhãn 2; '
+               'đảo vị trí từ có nội dung trong một cụm không phải thiếu vị ngữ chính. '
+               'Chỉ chọn 0 sau khi kiểm tra cấu tạo từng cụm; chỉ chọn 1 khi phải sửa khung câu. '
+               'Ưu tiên 3 nếu chỉ sửa từ công cụ là đủ, 4 nếu chỉ sửa dấu câu là đủ. '
+               'Các lượt hội thoại trước là ví dụ ranh giới, không phải đáp án cho Input cuối. '
+               'Trả đúng một JSON object có các khóa label, confidence, reason; '
+               'label là integer 0..4, confidence là số 0..1, reason ngắn và nêu phép sửa tối thiểu. '
+               'Không markdown, không thêm JSON thứ hai.'}]
+    for example in demonstrations:
+        result.append({"role": "user", "content": "Input: " + example["Input"]})
+        result.append({"role": "assistant", "content": json.dumps({
+            "label": example["label"], "confidence": 0.95,
+            "reason": example["reason"]}, ensure_ascii=False)})
+    result.append({"role": "user", "content": "Input: " + sentence})
+    return result
 
 
 def audit_prompt(source, fixed):
     return messages(
         'Kiểm định nghiêm ngặt cặp câu; không biết nhãn người sinh mong muốn. '
         'Kiểm tra câu đích đúng và tự nhiên, sửa tối thiểu đúng một lỗi, giữ ý nghĩa dự định. '
-        'phrase_only chỉ đúng nếu lỗi thuộc quan hệ trong cụm và khung câu chính giữ nguyên. '
-        'function_only=true nếu tồn tại cách sửa chỉ bằng một/một cặp từ công cụ, kể cả đáp án đề xuất sửa dài hơn. '
+        'phrase_only=true khi thành phần có nội dung được sắp xếp lại trong một cụm và khung câu chính giữ nguyên, '
+        'kể cả khi cụm đó nằm trong giới ngữ. '
+        'function_only=true chỉ khi có thể sửa hoàn toàn bằng một/một cặp từ công cụ; '
+        'động từ từ vựng, danh từ và tính từ miêu tả không phải từ công cụ. '
         'punctuation_only=true nếu có thể sửa chỉ bằng dấu câu. '
-        'natural_error=false nếu lỗi là đảo từ ngẫu nhiên hoặc quá máy móc. '
         'Trả chính xác {"grammatical_fixed":true,"meaning_preserved":true,"minimal":true,'
         '"phrase_only":true,"function_only":false,"punctuation_only":false,'
-        '"natural_error":true,"error_count":1,"reason":"bằng chứng ngắn"}.',
+        '"error_count":1,"reason":"bằng chứng ngắn"}.',
         {"Input": source, "proposed_correction": fixed})
 
 

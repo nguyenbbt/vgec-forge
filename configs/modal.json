@@ -4,6 +4,7 @@
   "start_id": 120001,
   "seed": 42,
   "round_size": 20,
+  "controlled_injection": true,
   "max_rounds": 40,
   "min_confidence": 0.85,
   "dedup_threshold": 0.9,

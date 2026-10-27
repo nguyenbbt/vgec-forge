@@ -1,4 +1,4 @@
-# VGEC Factory
+# VGEC Forge
 
 Hệ thống Python sinh dữ liệu sửa lỗi ngữ pháp tiếng Việt theo quy ước nhãn của bạn.
 Profile local mặc định xuất **300 mẫu nhãn 2**, ID **120001–120300**; runner Modal
@@ -9,6 +9,23 @@ mặc định **10 mẫu** và cho đổi bằng `--count`. Hệ thống dùng:
 - Verifier độc lập: `Qwen/Qwen3-4B-Instruct-2507`.
 - Reverse Error Injection, Label-Conditioned Few-Shot, kiểm nhãn mù,
   kiểm phép sửa, khử trùng và Hard Example Mining từ lỗi classifier.
+
+## Bắt đầu nhanh trên Modal
+
+Corpus VGEC gốc không được lưu trong repo. Cài Modal CLI, đăng nhập, rồi chỉ
+định đường dẫn corpus của bạn khi chạy:
+
+```powershell
+python -m pip install "modal>=1,<2"
+python -m modal setup
+python -m modal run scripts/modal_vgec.py --corpus "D:\duong-dan\VGEC 2026_v2.json" --count 10
+```
+
+Ví dụ [10 câu đã sinh](examples/modal-v4-10/dataset.jsonl),
+[audit](examples/modal-v4-10/audit.jsonl), [báo cáo chạy](examples/modal-v4-10/report.json)
+và [báo cáo kỹ thuật](reports/vgec_modal_generation_technical_report.md) có trong
+repo. Các file này là dữ liệu tổng hợp đã qua bộ lọc của pipeline, chưa được gán
+nhãn lại bởi nhóm chú giải độc lập.
 
 ## Cấu hình trên máy hiện tại
 
@@ -90,21 +107,29 @@ Runner tải corpus lên Modal Volume `vgec-source`, tải trọng số Qwen và
 `vgec-hf-cache`, và giữ checkpoint trong `vgec-runs`. Lệnh local lặp các vòng
 sinh/kiểm, lưu checkpoint sau mỗi vòng; nếu phiên bị gián đoạn, chạy lại cùng lệnh
 để tiếp tục. Khi đủ số câu yêu cầu, runner kiểm schema và tải kết quả về
-`outputs/vgec-label2-modal-10/dataset.jsonl` với mặc định 10 câu, hoặc thư mục
-`vgec-label2-modal-<count>` tương ứng. Có thể đổi đích bằng `--output`.
+`outputs/vgec-label2-modal-v4-10/dataset.jsonl` với mặc định 10 câu, hoặc thư mục
+`vgec-label2-modal-v4-<count>` tương ứng. Có thể đổi đích bằng `--output`.
 Mỗi mức `count` dùng checkpoint riêng.
 Không chạy hai phiên với cùng cấu hình cùng lúc vì chúng dùng chung checkpoint.
 
+Chế độ Modal yêu cầu Qwen sinh câu đúng chứa một cụm đích; mã chèn lỗi ngay trong
+cụm đó rồi để verifier độc lập kiểm tra nhãn và cặp câu. Câu không
+chứa cụm đích đúng một lần sẽ bị loại. Nếu cả vòng không có ứng viên hợp lệ,
+runner dừng và ghi lý do vào checkpoint để tránh tiếp tục tốn GPU vô ích.
+Nếu hai vòng liên tiếp không có câu nào mới được verifier chấp nhận, lệnh cũng
+dừng; trường `blind_labels` và `rejections` trong `report.json` giúp chẩn đoán.
+Checkpoint `vgec-label2-modal-10` của cách sinh cũ được giữ riêng, không trộn
+với kết quả của phiên bản này.
+
 Modal yêu cầu tài khoản và phương thức thanh toán để cấp GPU. Lần đầu build image
-và tải khoảng 17,4 GB trọng số model có thể mất thời gian. Runner này chưa được
-chạy trên tài khoản Modal trong phiên phát triển; kiểm thử local không chứng minh
-chất lượng sinh hay bộ nhớ GPU thực tế trên Modal.
+và tải trọng số model có thể mất thời gian. Kết quả cuối chỉ được ghi sau khi
+đủ số câu qua verifier; số lượng chấp nhận và lý do loại có trong checkpoint.
 
 Nếu cần tải thủ công kết quả và audit từ Volume:
 
 ```powershell
-.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal-10/dataset.jsonl .\outputs\modal-dataset.jsonl
-.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal-10/audit.jsonl .\outputs\modal-audit.jsonl
+.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal-v4-10/dataset.jsonl .\outputs\modal-dataset.jsonl
+.\.venv\Scripts\python.exe -m modal volume get vgec-runs /vgec-label2-modal-v4-10/audit.jsonl .\outputs\modal-audit.jsonl
 ```
 
 Profile Modal ở `configs/modal.json` dùng cùng generator/verifier 4-bit và tập
@@ -182,14 +207,13 @@ giống nhau tuyệt đối giữa phần cứng/server khác nhau.
    bớt ứng viên, không tự chứng minh nhãn.
 4. Verifier phân loại câu lỗi theo đủ 5 nhãn, **không nhận** nhãn đích,
    câu sửa, giải thích hoặc subtype của generator.
-5. Verifier phân loại riêng câu đúng, phải trả 0.
-6. Verifier kiểm cặp: một lỗi, sửa tối thiểu, giữ ý nghĩa dự định, lỗi thuộc cụm,
-   không có cách sửa đơn thuần bằng từ công cụ/dấu câu, lỗi có tính tự nhiên.
-7. Khử trùng chính xác/gần trùng cả Input và câu sửa; phân bố lựa chọn theo
+5. Verifier kiểm cặp: câu sửa đúng, một lỗi, sửa tối thiểu, giữ ý nghĩa dự định,
+   lỗi thuộc cụm và không có cách sửa đơn thuần bằng từ công cụ/dấu câu.
+6. Khử trùng chính xác/gần trùng cả Input và câu sửa; phân bố lựa chọn theo
    các nhóm cấu trúc yêu cầu. Subtype là yêu cầu sinh, chưa phải nhãn phụ đã kiểm chứng.
-8. Chỉ khi đủ số mẫu mới gán ID và xuất file cuối.
+7. Chỉ khi đủ số mẫu mới gán ID và xuất file cuối.
 
-Confidence mặc định ≥ 0.85 ở hai bước phân loại. Đây là điểm **model tự báo**,
+Confidence mặc định ≥ 0.85 ở bước phân loại độc lập. Đây là điểm **model tự báo**,
 không phải xác suất đúng đã hiệu chuẩn. Cần đọc mẫu trong `audit.jsonl` trước
 khi sử dụng dữ liệu cho thí nghiệm quan trọng. Việc kiểm nhãn độc lập giảm thiên
 lệch nhưng hai model cùng họ Qwen vẫn có thể mắc lỗi tương quan.

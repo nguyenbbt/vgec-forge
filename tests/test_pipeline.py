@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 
 from vgec.config import validate_config
-from vgec.pipeline import Pipeline, validate_candidate
-from vgec.prompts import EXAMPLES, classify_prompt
+from vgec.pipeline import Pipeline, controlled_candidate, validate_candidate
+from vgec.prompts import CONTROLLED_PATTERNS, EXAMPLES, classify_prompt
 
 
 GOOD = "Bác thợ đặt một chiếc ghế gỗ cạnh hiên."
@@ -33,7 +33,7 @@ def verdict(label):
 
 AUDIT = {"grammatical_fixed": True, "meaning_preserved": True, "minimal": True,
          "phrase_only": True, "function_only": False, "punctuation_only": False,
-         "natural_error": True, "error_count": 1, "reason": "Lỗi nội bộ cụm."}
+         "error_count": 1, "reason": "Lỗi nội bộ cụm."}
 
 
 class PipelineTests(unittest.TestCase):
@@ -41,14 +41,14 @@ class PipelineTests(unittest.TestCase):
         return validate_config({"run_dir": directory, "count": 1, "round_size": 1, "max_rounds": 2, **changes})
 
     def test_blind_verifier_never_receives_candidate_answer(self):
-        payload = json.loads(classify_prompt("Câu bí mật.")[1]["content"].split("\n", 1)[1])
-        self.assertEqual(set(payload), {"Input", "boundary_examples"})
-        self.assertEqual(payload["Input"], "Câu bí mật.")
+        prompt = classify_prompt("Câu bí mật.")
+        self.assertEqual(prompt[-1], {"role": "user", "content": "Input: Câu bí mật."})
+        self.assertNotIn("Câu bí mật.", str(prompt[:-1]))
 
     def test_verifier_does_not_receive_its_input_as_labeled_fewshot(self):
         example = EXAMPLES[3]
-        payload = json.loads(classify_prompt(example["Input"])[1]["content"].split("\n", 1)[1])
-        self.assertNotIn(example, payload["boundary_examples"])
+        prompt = classify_prompt(example["Input"])
+        self.assertEqual(sum(example["Input"] in turn["content"] for turn in prompt), 1)
 
     def test_holdout_fewshot_is_removed_from_generation_context(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -68,11 +68,31 @@ class PipelineTests(unittest.TestCase):
             validate_candidate({"input": "Cuốn sách thuộc của tôi.", "error_span": "thuộc của",
                                 "fixed_span": "thuộc", "explanation": "thừa của"}, "Cuốn sách thuộc tôi.")
 
+    def test_controlled_injection_requires_exact_anchor_and_repairs_locally(self):
+        pattern = CONTROLLED_PATTERNS[0]
+        clean = "Hôm qua, bác thợ mang một chiếc bàn gỗ vào phòng khách."
+        value = controlled_candidate(clean, pattern)
+        self.assertEqual(value["input"], "Hôm qua, bác thợ mang một chiếc gỗ bàn vào phòng khách.")
+        self.assertEqual(value["input"].replace(value["error_span"], value["fixed_span"]), clean)
+        with self.assertRaisesRegex(ValueError, "missing_or_repeated_required_phrase"):
+            controlled_candidate("Bác thợ mang chiếc bàn gỗ vào phòng.", pattern)
+
+    def test_controlled_generation_uses_model_context_and_exact_repair(self):
+        with tempfile.TemporaryDirectory() as directory:
+            clean = "Hôm qua, bác thợ mang một chiếc bàn gỗ vào phòng khách."
+            config = self.config(directory, controlled_injection=True)
+            models = iter([ScriptedModel([{"sentence": clean}]),
+                           ScriptedModel([verdict(2), AUDIT])])
+            pipeline = Pipeline(config, factory=lambda _: next(models))
+            pipeline.run()
+            row = json.loads((Path(directory) / "dataset.jsonl").read_text(encoding="utf-8"))
+            self.assertEqual(row["Output"]["Fixed Sentence"], [clean])
+
     def test_full_generate_verify_export_and_resume(self):
         with tempfile.TemporaryDirectory() as directory:
             config = self.config(directory)
             models = iter([ScriptedModel([{"sentence": GOOD}, candidate()]),
-                           ScriptedModel([verdict(2), verdict(0), AUDIT])])
+                           ScriptedModel([verdict(2), AUDIT])])
             pipeline = Pipeline(config, factory=lambda _: next(models))
             pipeline.run()
             rows = [json.loads(line) for line in (Path(directory) / "dataset.jsonl").read_text(encoding="utf-8").splitlines()]
@@ -125,7 +145,7 @@ class PipelineTests(unittest.TestCase):
             seed_path = Path(directory) / "seeds.jsonl"
             seed_path.write_text(json.dumps({"sentence": GOOD}), encoding="utf-8")
             config = self.config(str(Path(directory) / "run"), seed_path=str(seed_path), round_size=60)
-            models = iter([ScriptedModel([candidate()]), ScriptedModel([verdict(2), verdict(0), AUDIT])])
+            models = iter([ScriptedModel([candidate()]), ScriptedModel([verdict(2), AUDIT])])
             pipeline = Pipeline(config, factory=lambda _: next(models))
             self.assertTrue(pipeline.run().exists())
 
@@ -134,7 +154,7 @@ class PipelineTests(unittest.TestCase):
             seed_path = Path(directory) / "seeds.jsonl"
             seed_path.write_text(json.dumps({"sentence": GOOD}), encoding="utf-8")
             config = self.config(str(Path(directory) / "run"), seed_path=str(seed_path), round_size=60, count=2)
-            models = iter([ScriptedModel([candidate()]), ScriptedModel([verdict(2), verdict(0), AUDIT])])
+            models = iter([ScriptedModel([candidate()]), ScriptedModel([verdict(2), AUDIT])])
             pipeline = Pipeline(config, factory=lambda _: next(models))
             with self.assertRaisesRegex(ValueError, "Seed corpus exhausted"):
                 pipeline.run()
@@ -142,7 +162,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_low_confidence_and_function_only_audit_never_pass(self):
         for responses in ([{**verdict(2), "confidence": 0.4}],
-                          [verdict(2), verdict(0), {**AUDIT, "function_only": True}]):
+                          [verdict(2), {**AUDIT, "function_only": True}]):
             with self.subTest(responses=responses), tempfile.TemporaryDirectory() as directory:
                 models = iter([ScriptedModel([{"sentence": GOOD}, candidate()]), ScriptedModel(responses)])
                 pipeline = Pipeline(self.config(directory), factory=lambda _: next(models))
