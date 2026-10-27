@@ -1,0 +1,13 @@
+{
+  "attempts": 20,
+  "candidates": 19,
+  "verified": 19,
+  "accepted": 19,
+  "target": 10,
+  "rejections": {},
+  "blind_labels": {
+    "2": 19
+  },
+  "generation_rejected": 1,
+  "confidence_note": "Model self-reported; not calibrated probability"
+}

@@ -1,0 +1,10 @@
+{"ID": 120001, "Input": "Anh ấy ngồi trước một chiếc gỗ bàn để làm bài tập.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Anh ấy ngồi trước một chiếc bàn gỗ để làm bài tập."]}}
+{"ID": 120002, "Input": "Anh ấy rất muốn tiếng Nhật học từ năm ngoái.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Anh ấy rất muốn học tiếng Nhật từ năm ngoái."]}}
+{"ID": 120003, "Input": "Anh ấy đã hoàn thành một bản chi tiết báo cáo trước khi đi ngủ.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Anh ấy đã hoàn thành một bản báo cáo chi tiết trước khi đi ngủ."]}}
+{"ID": 120004, "Input": "Anh ấy quyết tâm đi du học và định tiếng Anh học.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Anh ấy quyết tâm đi du học và định học tiếng Anh."]}}
+{"ID": 120005, "Input": "Anh ấy ngồi thư giãn trên một chiếc gỗ ghế trong phòng khách.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Anh ấy ngồi thư giãn trên một chiếc ghế gỗ trong phòng khách."]}}
+{"ID": 120006, "Input": "Cô ấy rất muốn tiếng Nhật học để du lịch.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Cô ấy rất muốn học tiếng Nhật để du lịch."]}}
+{"ID": 120007, "Input": "Để đạt được mục tiêu, chúng ta cần xây dựng một bản cụ thể kế hoạch.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Để đạt được mục tiêu, chúng ta cần xây dựng một bản kế hoạch cụ thể."]}}
+{"ID": 120008, "Input": "Cô ấy quyết định tiếng Anh học để cải thiện kỹ năng giao tiếp.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Cô ấy quyết định học tiếng Anh để cải thiện kỹ năng giao tiếp."]}}
+{"ID": 120009, "Input": "Tôi đang ngồi trước một chiếc gỗ bàn.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Tôi đang ngồi trước một chiếc bàn gỗ."]}}
+{"ID": 120010, "Input": "Anh ấy rất muốn tiếng Nhật học nên đã đăng ký khóa học ngay.", "Output": {"Error_Type_Id": 2, "Fixed Sentence": ["Anh ấy rất muốn học tiếng Nhật nên đã đăng ký khóa học ngay."]}}

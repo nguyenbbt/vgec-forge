@@ -4,6 +4,10 @@ __pycache__/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+.modal/
 outputs/
 models/
 *.egg-info/
